@@ -1,0 +1,63 @@
+#!/usr/bin/env node
+
+var fs = require('fs')
+var webpack = require('webpack')
+var WebpackDevServer = require('webpack-dev-server')
+
+// Graft environment variables from .env if it exists
+try {
+  fs.readFileSync(__dirname + '/../.env').toString().split('\n').map(function(line) {
+    var row = line.split(/\s*=\s*/)
+    var key = row[0]
+    var value = row[1]
+
+    process.env[key] = process.env[key] || value
+  })
+} catch (e) {
+}
+
+var config = require('../webpack.config')
+var port = process.env.PORT || 3000
+var url = 'http://localhost:' + port
+
+config.devtool = 'eval'
+config.debug = true
+config.output.pathinfo = true
+config.output.publicPath = '/'
+
+config.entry.client.push('webpack-dev-server/client?' + url, 'webpack/hot/dev-server')
+config.plugins.push(new webpack.HotModuleReplacementPlugin())
+config.module.loaders.some(function(loader) {
+  if (loader.loader === 'jsx') {
+    loader.loader = 'react-hot!jsx'
+
+    return true
+  }
+})
+
+var server = new WebpackDevServer(webpack(config), {
+  contentBase: false,
+  hot: true,
+  stats: {
+    colors: true,
+    assets: false,
+    cached: false,
+    hash: false,
+    version: false
+  },
+  watchDelay: 100
+})
+
+
+var express = require('express')
+var path = require('path')
+
+server.use(function(req, res, next) {
+  if (req.url.match(/\/[^\.]*$/)) req.url = '/'
+  next()
+})
+server.use(express.static(path.resolve('build/public')))
+server.use(express.static(path.resolve('src')))
+server.listen(port, function() {
+  console.log('Development server at %s', url)
+})
